@@ -26,7 +26,7 @@ import uuid
 import logging
 import M2Crypto
 import re
-    
+
 from lxml import etree
 from lxml.etree import XMLSyntaxError
 from xml.parsers.expat import ExpatError
@@ -40,19 +40,19 @@ class View(object):
     is used in Mozilla Thunderbird and several other open-source MUAs. It also
     supports .mobileconfig profile support as found on iOS devices. These
     profiles can also be used on Mac OS X Mail.app
-        
+
     """
     def __init__(self, model, schema, subschema):
         self.__model = model
         self.__schema = schema
         self.__subschema = subschema
-        
+
         self.__xml = None
         self.__plist = None
-        
+
     def __build_xml_plist_tree(self):
         root = None
-        
+
         if self.__model.domain.has_key(self.__schema):
             if self.__schema in ("autodiscover", "autoconfig"):
                 path = self.__model.domain[self.__schema]
@@ -85,45 +85,45 @@ class View(object):
                 response = etree.SubElement(root,
                                             "Response",
                                             xmlns=NS_Response)
-                
+
                 if (self.__model.domain.has_key("display_name") or
                     (self.__model.domain.has_key("smtp") and
                      self.__model.domain["smtp"][0].has_key("smtp_author"))):
-                    
+
                     has_user = True
-                    
+
                     user = etree.SubElement(response, "User")
-                    
+
                     if self.__model.domain.has_key("display_name"):
                         displayname = etree.SubElement(user, "DisplayName")
                         displayname.text = self.__model.domain["display_name"]
-    
+
                     if self.__model.domain.has_key("smtp"):
                         smtp = self.__model.domain["smtp"]
-        
+
                         if smtp[0].has_key("smtp_author"):
                             email = smtp[0]["smtp_author"]
-        
+
                             smtp_author = etree.SubElement(user,
                                                     "AutoDiscoverSMTPAddress")
                             smtp_author.text = email
-    
+
                 account = etree.SubElement(response, "Account")
-    
+
                 if self.__model.domain.has_key("account_type"):
                     account_type = etree.SubElement(account, "AccountType")
                     account_type.text = self.__model.domain["account_type"]
                 else:
                     raise Exception("Missing attribute <account_type>")
-                
+
                 if self.__model.domain.has_key("action"):
                     action = etree.SubElement(account, "Action")
                     action.text = self.__model.domain["action"]
                 else:
                     raise Exception("Missing attribute <action>")
-    
+
                 for key, value in self.__model.domain.iteritems():
-                    if key in ("smtp", "imap", "pop"):
+                    if key in ("smtp", "imap", "pop", "ox"):
                         if len(value) != 0:
                             protocol = etree.SubElement(account, "Protocol")
                             self.__service(key, protocol)
@@ -138,33 +138,33 @@ class View(object):
                 response = etree.SubElement(root,
                                             "Response",
                                             xmlns=NS_Response)
-                
+
                 # TODO: do we need a Culture option?
                 culture = etree.SubElement(response, "Culture")
                 culture.text = "en:us"
-                
+
                 user = etree.SubElement(response, "User")
-                
+
                 if self.__model.domain.has_key("display_name"):
                     displayname = etree.SubElement(user, "DisplayName")
                     displayname.text = self.__model.domain["display_name"]
-                
+
                 emailaddress = etree.SubElement(user, "EmailAddress")
                 emailaddress.text = self.__model.domain["emailaddress"]
 
                 action = etree.SubElement(response, "Action")
-                
+
                 settings = etree.SubElement(action, "Settings")
-                
+
                 server = etree.SubElement(settings, "Server")
-                
+
                 servertype = etree.SubElement(server, "Type")
                 servertype.text = "MobileSync"
-                
+
                 if self.__model.domain.has_key("server_url"):
                     serverurl = etree.SubElement(server, "Url")
                     serverurl.text = self.__model.domain["server_url"]
-                
+
                 if self.__model.domain.has_key("server_name"):
                     servername = etree.SubElement(server, "Name")
                     servername.text = self.__model.domain["server_name"]
@@ -179,7 +179,7 @@ class View(object):
 
         elif self.__schema == "autoconfig":
             root = etree.Element("clientConfig", version="1.1")
-            
+
             provider = etree.SubElement(root,
                                         "emailProvider",
                                         id=self.__model.provider)
@@ -187,11 +187,11 @@ class View(object):
             domain = etree.SubElement(provider, "domain")
             if self.__model.domain.has_key("domain"):
                 domain.text = self.__model.domain["domain"]
-            
+
             display_name = etree.SubElement(provider, "displayName")
             if self.__model.domain.has_key("account_name"):
                 display_name.text = self.__model.domain["account_name"]
-            
+
             display_short = etree.SubElement(provider, "displayShortName")
             if self.__model.domain.has_key("account_name_short"):
                 display_short.text = self.__model.domain["account_name_short"]
@@ -200,7 +200,7 @@ class View(object):
                 if key in ("smtp", "imap", "pop"):
                     if len(value) != 0:
                         self.__service(key, provider)
-    
+
             self.__xml = root
 
         elif self.__schema == "mobileconfig":
@@ -208,7 +208,7 @@ class View(object):
 
             # We only support IMAP or POP3.
             service_configured = False
-            
+
             for key, value in self.__model.domain.iteritems():
                 if not service_configured and key == "imap":
                     if len(value) != 0:
@@ -223,12 +223,12 @@ class View(object):
                 if key == "smtp":
                     if len(value) != 0:
                         self.__service(key, None, proto)
-                        
+
             if self.__model.domain.has_key("account_name"):
                 org = self.__model.domain["account_name"]
             else:
                 org = self.__model.provider
-            
+
             email_account_name = self.__model.cn
             if self.__model.domain.has_key("display_name"):
                 if self.__model.cn == "":
@@ -239,10 +239,10 @@ class View(object):
             rev_email = self.__model.emailaddress.split("@")
             rev_email = ".".join(rev_email[::-1])
             payload_identifier = ("org.automx.mail."
-                                  + rev_provider 
+                                  + rev_provider
                                   + "."
                                   + rev_email)
-             
+
             s = dict(EmailAccountDescription = org,
                      EmailAccountName = email_account_name,
                      EmailAccountType = proto["type"],
@@ -269,7 +269,7 @@ class View(object):
                      PreventAppSheet = False,
                      PreventMove = False,
                      SMIMEEnabled = False)
-                
+
             self.__plist = dict(PayloadContent = [s],
                                 PayloadDescription = "Automx Email",
                                 PayloadDisplayName = org,
@@ -287,14 +287,16 @@ class View(object):
             # we assume, autodiscover only supports single protocols! So we
             # only use the first defined list element
             elem = l[0]
-            
+
             c = etree.SubElement(root, "Type")
-            
+
             if service in ("smtp", "imap"):
                 type = service.upper()
             elif service in "pop":
                 type = "POP3"
-            
+            elif service in "ox":
+                type ="X-OX-APPSUITE"
+
             c.text = type
 
             if elem.has_key(service + "_server"):
@@ -305,7 +307,7 @@ class View(object):
                 c = etree.SubElement(root, "Port")
                 c.text = elem[service + "_port"]
 
-            
+
             c = etree.SubElement(root, "DomainRequired")
             c.text = "off"
             # DomainName - not implemented, yet
@@ -313,7 +315,7 @@ class View(object):
             if elem.has_key(service + "_auth_identity"):
                 c = etree.SubElement(root, "LoginName")
                 c.text = elem[service + "_auth_identity"]
-                
+
             if elem.has_key(service + "_auth"):
                 c = etree.SubElement(root, "SPA")
 
@@ -324,7 +326,7 @@ class View(object):
                     spa = "on"
                 else:
                     spa = "off"
-                    
+
                 c.text = spa
 
             if elem.has_key(service + "_encryption"):
@@ -343,7 +345,7 @@ class View(object):
                 else:
                     # anything that we can not understand leads into "None"
                     ssl = "None"
-                    
+
                 c.text = ssl
 
             c = etree.SubElement(root, "AuthRequired")
@@ -380,32 +382,32 @@ class View(object):
                     sub_root = etree.SubElement(root,
                                                 "incomingServer",
                                                 type="pop3")
-                
+
                 if elem.has_key(service + "_server"):
                     c = etree.SubElement(sub_root, "hostname")
                     c.text = elem[service + "_server"]
-    
+
                 if elem.has_key(service + "_port"):
                     c = etree.SubElement(sub_root, "port")
                     c.text = elem[service + "_port"]
-    
+
                 if elem.has_key(service + "_encryption"):
                     c = etree.SubElement(sub_root, "socketType")
-    
+
                     value = elem[service + "_encryption"]
-    
+
                     if value in ("ssl", "starttls"):
                         c.text = value.upper()
                     elif value in ("none", "auto"):
                         # autoconfig does not know anything about auto
                         c.text = "plain"
-    
+
                 if elem.has_key(service + "_auth"):
                     c = etree.SubElement(sub_root, "authentication")
-    
+
                     value = elem[service + "_auth"]
                     result = ""
-    
+
                     if value == "cleartext":
                         result = "password-cleartext"
                     elif value == "encrypted":
@@ -423,30 +425,30 @@ class View(object):
                     elif value == "smtp-after-pop":
                         if service == "smtp":
                             result = "SMTP-after-POP"
-                    
+
                     c.text = result
-    
+
                 if elem.has_key(service + "_auth_identity"):
                     c = etree.SubElement(sub_root, "username")
                     c.text = elem[service + "_auth_identity"]
-                    
+
                 if service == "smtp":
                     if elem.has_key(service + "_default"):
                         value = elem[service + "_default"]
-                        
+
                         c = etree.SubElement(sub_root,
                                              "useGlobalPreferredServer")
                         c.text = value.lower()
-        
+
         elif self.__schema == "mobileconfig":
             # see autodiscover comment above
             elem = l[0]
-            
+
             if service == "imap":
                 proto["type"] = "EmailTypeIMAP"
             if service == "pop":
                 proto["type"] = "EmailTypePOP"
-            
+
             if elem.has_key(service + "_server"):
                 if service in ("imap", "pop"):
                     proto["in_server"] = elem[service + "_server"]
@@ -458,7 +460,7 @@ class View(object):
                     proto["in_port"] = int(elem[service + "_port"])
                 else:
                     proto["out_port"] = int(elem[service + "_port"])
-                    
+
             if elem.has_key(service + "_auth_identity"):
                 if service in ("imap", "pop"):
                     proto["in_username"] = elem[service + "_auth_identity"]
@@ -487,15 +489,15 @@ class View(object):
                     pass
                 elif value == "none":
                     result = "EmailAuthNone"
-                
+
                 if service in ("imap", "pop"):
                     proto["in_auth"] = result
                 else:
                     proto["out_auth"] = result
-                
+
             if elem.has_key(service + "_encryption"):
                 value = elem[service + "_encryption"]
-    
+
                 if value in ("ssl", "starttls"):
                     if service in ("imap", "pop"):
                         proto["in_encryption"] = True
@@ -506,7 +508,7 @@ class View(object):
                         proto["in_encryption"] = False
                     else:
                         proto["out_encryption"] = False
-                    
+
     def render(self):
         """Return the XML result of the view as a character string.
         """
@@ -518,10 +520,10 @@ class View(object):
                                   method="xml",
                                   encoding="utf-8",
                                   pretty_print=True)
-            
+
         elif self.__plist is not None:
             plist_unsigned = writePlistToString(self.__plist)
-            
+
             if self.__model.domain.has_key("sign_mobileconfig"):
                 if (self.__model.domain["sign_mobileconfig"] is True and
                     self.__model.domain.has_key("sign_cert") and
@@ -529,23 +531,23 @@ class View(object):
 
                     sign_cert = self.__model.domain["sign_cert"]
                     sign_key = self.__model.domain["sign_key"]
-                
+
                     buffer = M2Crypto.BIO.MemoryBuffer(plist_unsigned)
                     signer = M2Crypto.SMIME.SMIME()
                     s = M2Crypto.X509.X509_Stack()
-                
+
                     cert_handle = open(sign_cert).read()
                     certificates = re.finditer(r"-----BEGIN CERTIFICATE-----"
                                                 ".*?-----END CERTIFICATE-----",
                                                 cert_handle, re.S)
-                
+
                     # First certificate is for signing!
                     # Rest is intermediate cert chain!
                     certificates.next()
                     for match in certificates:
                         s.push(M2Crypto.X509.load_cert_string(match.group(0)))
                     signer.set_x509_stack(s)
-                    
+
                     # Load key and _first_ certificate
                     try:
                         signer.load_key(sign_key, sign_cert)
@@ -553,16 +555,16 @@ class View(object):
                         logging.error("Cannot access %s or %s. Not signing!"
                                       % (sign_cert, sign_key))
                         return plist_unsigned
-                    
+
                     p7 = signer.sign(buffer)
                     output = M2Crypto.BIO.MemoryBuffer()
                     p7.write_der(output)
                     plist_signed = output.getvalue()
-                    
+
                     return plist_signed
                 else:
                     logging.info("Not signing!")
-                    
+
             return plist_unsigned
         else:
             return ""

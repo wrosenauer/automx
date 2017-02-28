@@ -60,47 +60,47 @@ class Config(object, ConfigParser.RawConfigParser):
     independend from the view. It may query different backends to gather all
     required information needed to generate XML output later on in the view
     class.
-    
+
     It uses a OrderdDict to guarentee the correct service order that is needed
     in the XML output. This said means that it is a difference, if a service
     like IMAP is configured before POP3 or upside down, because a MUA follows
     this order.
-    
-    The class currently support smtp, pop and imap services.
-    
+
+    The class currently support smtp, pop, imap and ox services.
+
     The class currently supports the following backends:
-    
+
     -> global - This backend tells automx to use the global section
-    
+
     -> static - all kind of service information that can be sent directly to
                 the MUA
-                
+
     -> filter - This backend can execute commands and collects results from
                 stdout. The result may be "", which means we skip further
                 searching. It may return data, which should point to a section
                 that we try to follow.
-                
+
     -> ldap   - Read all kind of information from LDAP servers. The result
                 attributes are stored in an internal dictionary and if options
                 later on in this backend section (is read as static backend)
                 do contain variables in the form ${attributename}, these are
                 expanded to the collected data.
-                
+
     -> sql    - Read all kind of information from SQL servers. The result
                 attributes are stored in an internal dictionary. See ldpa
-                
+
     -> script - Execute a script and split a result into attributes, which are
                 stored in an internal dictionary, See ldap
-                
+
     -> file   - Provide static files. If present, all collected data are
                 discarded and only the static file is sent to the remote
                 client. This may change in future releases.
-    
+
     Note: There may exist a DEFAULT section that is appended to _all_ sections
     in the configuration file. That said you can do really complex
     configurations that on the other hand make life easier. This section also
     may contain variables, which, if found in the vars-dictionary, are used.
-    
+
     """
     def __init__(self, environ):
         ConfigParser.RawConfigParser.__init__(self,
@@ -134,9 +134,9 @@ class Config(object, ConfigParser.RawConfigParser):
             self.debug = self.getboolean("automx", "debug")
         else:
             self.debug = False
-            
+
         self.memcache = Memcache(self, environ)
-        
+
         # defaults
         self.__emailaddress = ""
         self.__cn = ""
@@ -149,27 +149,27 @@ class Config(object, ConfigParser.RawConfigParser):
 
         # if we use dynamic backends, we might earn variables
         self.__vars = dict()
-        
+
     def configure(self, emailaddress, cn=None, password=None):
         if emailaddress is None:
             return OrderedDict()
 
         # Full email address containing local part _and_ domain
         self.__emailaddress = emailaddress
-        
+
         # Mobileconfig
         if cn is not None:
             self.__cn = cn
         if password is not None:
             self.__password = password
-        
+
         # The domain that is searched in the config file
         domain = emailaddress.split("@")[1]
         self.__search_domain = domain
-        
+
         try:
             provider = self.get("automx", "provider")
-            
+
             # provider must be a domainname
             pattern = "^[0-9a-zA-Z.-]+[a-zA-Z]{2,9}$"
             prog = re.compile(pattern)
@@ -179,9 +179,9 @@ class Config(object, ConfigParser.RawConfigParser):
             else:
                 logging.error("<provider> setting broken!")
                 self.__automx["provider"] = "provider.broken"
-            
+
             tmp = self.create_list(self.get("automx", "domains"))
-            self.__automx["domains"] = tmp 
+            self.__automx["domains"] = tmp
         except TypeError:
             raise Exception("Missing options in section automx")
 
@@ -205,16 +205,16 @@ class Config(object, ConfigParser.RawConfigParser):
 
         settings["domain"] = self.__search_domain
         settings["emailaddress"] = self.__emailaddress
-        
+
         section = self.__find_section(section)
-        
+
         if self.has_option(section, "backend"):
             if backend is None:
                 try:
                     backend = self.get(section, "backend")
                 except NoOptionError:
                     raise Exception("Missing option <backend>")
-                
+
             if backend in ("static", "static_append"):
                 for opt in iter(self.options(section)):
                     if opt in ("action",
@@ -234,6 +234,8 @@ class Config(object, ConfigParser.RawConfigParser):
                         service = self.__service(section, "imap")
                     elif opt == "pop":
                         service = self.__service(section, "pop")
+                    elif opt == "ox":
+                        service = self.__service(section, "ox")
                     elif opt == "sign_mobileconfig":
                         try:
                             settings[opt] = self.getboolean(section, opt)
@@ -248,8 +250,8 @@ class Config(object, ConfigParser.RawConfigParser):
                             logging.error("%s cannot read %s" % (opt, result))
                     else:
                         pass
-                    
-                    if opt in ("smtp", "imap", "pop"):
+
+                    if opt in ("smtp", "imap", "pop", "ox"):
                         if backend == "static_append":
                             if settings.has_key(opt):
                                 if self.debug:
@@ -321,12 +323,12 @@ class Config(object, ConfigParser.RawConfigParser):
                                "key",
                                "cacert"):
                         result = self.get(section, opt)
-                        
+
                         if opt in ("host", "result_attrs"):
                             result = self.create_list(result)
-                            
+
                         ldap_cfg[opt] = result
-                
+
                 # Do we connect with TLS?
                 if ldap_cfg["usetls"].lower() in ("yes", "true", "1"):
                     if ldap_cfg["reqcert"] in ("never",
@@ -358,7 +360,7 @@ class Config(object, ConfigParser.RawConfigParser):
                                         ldap_cfg["key"])
 
                     tls = True
-        
+
                 # Are we SASL binding to our servers?
                 if ldap_cfg["bindmethod"] == "sasl":
                     mech = ldap_cfg["saslmech"]
@@ -379,7 +381,7 @@ class Config(object, ConfigParser.RawConfigParser):
                             auth_tokens = ldap.sasl.gssapi(ldap_cfg["authzid"])
 
                     sasl = True
-        
+
                 con = None
 
                 for server in iter(ldap_cfg["host"]):
@@ -406,12 +408,12 @@ class Config(object, ConfigParser.RawConfigParser):
                         scope = ldap.SCOPE_BASE
 
                     filter = self.__replace_makro(ldap_cfg["filter"])
-                                            
+
                     rid = con.search(ldap_cfg["base"],
                                      scope,
                                      filter,
                                      ldap_cfg["result_attrs"])
-            
+
                     raw_res = (None, None)
                     raw_res = con.result(rid, True, 60)
                     if raw_res[0] == None:
@@ -420,7 +422,7 @@ class Config(object, ConfigParser.RawConfigParser):
 
                     # connection established, we have results
                     self.__vars = dict()
-                    
+
                     # we did not receive data from LDAP
                     if raw_res[1] != []:
                         for entry in raw_res[1]:
@@ -432,7 +434,7 @@ class Config(object, ConfigParser.RawConfigParser):
                         logging.warning("No LDAP result from server!")
                         raise DataNotFoundException
 
-                    try:    
+                    try:
                         con.unbind()
                     except ldap.LDAPError, e:
                         pass
@@ -441,7 +443,7 @@ class Config(object, ConfigParser.RawConfigParser):
                     self.__eval_options(section, backend="static")
                 else:
                     self.__eval_options(section, backend="static_append")
-            
+
             elif backend in ("sql", "sql_append"):
                 try:
                     from sqlalchemy.engine import create_engine
@@ -449,7 +451,7 @@ class Config(object, ConfigParser.RawConfigParser):
                     raise Exception("python sqlalchemy missing")
 
                 sql_cfg = dict(host = None, query = "", result_attrs = [])
-                
+
                 for opt in iter(self.options(section)):
                     if opt in ("host", "result_attrs"):
                         result = self.create_list(self.get(section, opt))
@@ -460,7 +462,7 @@ class Config(object, ConfigParser.RawConfigParser):
                     sql_cfg["query"] = self.__replace_makro(query)
                 else:
                     raise Exception("Missing option <query>")
-                
+
                 for con in iter(sql_cfg["host"]):
                     try:
                         engine = create_engine(con)
@@ -468,7 +470,7 @@ class Config(object, ConfigParser.RawConfigParser):
                     except Exception, e:
                         logging.error("SQL: %s" % e)
                         continue
-                    
+
                     result = connection.execute(sql_cfg["query"])
                     for row in result:
                         keys = row.keys()
@@ -484,7 +486,7 @@ class Config(object, ConfigParser.RawConfigParser):
                         raise DataNotFoundException
 
                     connection.close()
-                    
+
                     break
 
                 if backend == "sql":
@@ -497,7 +499,7 @@ class Config(object, ConfigParser.RawConfigParser):
                     if opt in ("autoconfig", "autodiscover", "mobileconfig"):
                         tmp = self.get(section, opt)
                         result = self.__expand_vars(tmp)
-                        
+
                         if os.path.exists(result):
                             settings[opt] = result
 
@@ -564,32 +566,32 @@ class Config(object, ConfigParser.RawConfigParser):
                     self.__eval_options(section, backend="static")
                 else:
                     self.__eval_options(section, backend="static_append")
-                            
+
             ### backends beyond this line do not have a follow option ###
 
             elif backend == "filter":
                 if self.has_option(section, "section_filter"):
                     tmp = self.create_list(self.get(section, "section_filter"))
                     special_opts = tmp
-                    
+
                     got_data = False
-                    
+
                     for special_opt in iter(special_opts):
                         if self.has_option(section, special_opt):
-                            cmd = shlex.split(self.get(section, special_opt)) 
+                            cmd = shlex.split(self.get(section, special_opt))
                             for i, item in enumerate(cmd):
                                 cmd[i] = self.__replace_makro(item)
 
                             stdout_fd = sys.__stdout__.fileno()
-                            
+
                             pipe_in, pipe_out = os.pipe()
-                            
+
                             pid = os.fork()
                             if pid == 0:
                                 # child
                                 os.close(pipe_in)
                                 os.dup2(pipe_out, stdout_fd)
-                                
+
                                 os.execvp(cmd[0], cmd)
 
                                 raise Exception("ERROR in execvp()")
@@ -597,11 +599,11 @@ class Config(object, ConfigParser.RawConfigParser):
                                 # parent
                                 os.close(pipe_out)
                                 recv = os.read(pipe_in, 1024)
-                                    
+
                                 result = os.waitpid(pid, 0)
                             else:
                                 continue
-                            
+
                             # check return code
                             if result[1] != 0:
                                 raise Exception("ERROR while calling filter",
@@ -617,23 +619,23 @@ class Config(object, ConfigParser.RawConfigParser):
                             if self.debug:
                                 logging.debug("Email address from filter: %s"
                                               % new_emailaddress)
-                            
+
                             got_data = True
-                            
-                            # we replace our search_domain 
+
+                            # we replace our search_domain
                             self.__search_domain = special_opt
                             self.__emailaddress = new_emailaddress
 
                             # recurse again, because we now have a new section
                             # that we need to scan
                             self.__eval_options(special_opt)
-                            
+
                             # we already got a result. Do not continue!
                             break
-                
+
                     if not got_data:
                         raise DataNotFoundException
-            
+
             elif backend == "global":
                 if self.has_section("global"):
                     self.__eval_options("global")
@@ -656,17 +658,17 @@ class Config(object, ConfigParser.RawConfigParser):
                 result = self.__expand_vars(self.get(section, opt))
 
                 proto_settings[opt] = result
-                
+
             if self.has_option(section, service + "_port"):
                 opt = service + "_port"
                 result = self.__expand_vars(self.get(section, opt))
-                
+
                 proto_settings[opt] = result
-                
+
             if self.has_option(section, service + "_encryption"):
                 opt = service + "_encryption"
                 result = self.__expand_vars(self.get(section, opt))
-                
+
                 if result.lower() == "none":
                     result = "none"
                 elif result.lower() == "ssl":
@@ -675,13 +677,13 @@ class Config(object, ConfigParser.RawConfigParser):
                     result = "starttls"
                 elif result.lower() == "auto":
                     result = "auto"
-                    
+
                 proto_settings[opt] = result
-                
+
             if self.has_option(section, service + "_auth"):
                 opt = service + "_auth"
                 result = self.__expand_vars(self.get(section, opt))
-                
+
                 if result.lower() == "plaintext":
                     result = "cleartext"
                 elif result.lower() == "encrypted":
@@ -700,7 +702,7 @@ class Config(object, ConfigParser.RawConfigParser):
                     if service == "smtp":
                         result = "smtp-after-pop"
                 # TODO: we allow bogus keys/values.
-                
+
                 proto_settings[opt] = result
 
             if self.has_option(section, service + "_auth_identity"):
@@ -710,13 +712,13 @@ class Config(object, ConfigParser.RawConfigParser):
             else:
                 emaillocalpart = self.__replace_makro("%u")
                 proto_settings[service + "_auth_identity"] = emaillocalpart
-            
+
             if self.has_option(section, service + "_expiration_date"):
                 opt = service + "_expiration_date"
                 result = self.__expand_vars(self.get(section, opt))
                 dt = parser.parse(result, fuzzy=True)
                 proto_settings[opt] = dt.strftime("%Y%m%d")
-                
+
             if self.has_option(section, service + "_refresh_ttl"):
                 opt = service + "_refresh_ttl"
                 result = self.get(section, opt)
@@ -729,7 +731,7 @@ class Config(object, ConfigParser.RawConfigParser):
 
                     if author == "%s":
                         proto_settings[opt] = self.__emailaddress
-                    
+
                 if self.has_option(section, service + "_default"):
                     try:
                         opt = service + "_default"
@@ -743,16 +745,16 @@ class Config(object, ConfigParser.RawConfigParser):
                         pass
 
         return proto_settings
-    
+
     def create_list(self, value):
         result = value.split()
-        
+
         if len(result) > 1:
             for i, item in enumerate(result):
                 result[i] = item.split(",")[0]
-                
+
         return result
-    
+
     def __replace_makro(self, expression):
         if "%u" in expression:
             user = self.__emailaddress.split("@")[0]
@@ -770,17 +772,17 @@ class Config(object, ConfigParser.RawConfigParser):
         # do we have some dynamic variables?
         if len(self.__vars) == 0:
             return expression
-        
+
         def repl(mobj):
             if self.__vars.has_key(mobj.group(1)):
                 result = self.__vars[mobj.group(1)]
-                
+
                 if mobj.group(2) is not None:
                     macro = mobj.group(2)[1:]
-                    
+
                     if self.debug:
                         logging.debug("__expand_vars()->macro=%s" % macro)
-                        
+
                     if "@" in result:
                         if macro == "%u":
                             return result.split("@")[0]
@@ -788,9 +790,9 @@ class Config(object, ConfigParser.RawConfigParser):
                             return result.split("@")[1]
                         if macro == "%s":
                             return result
-                        
+
                         result = result.split("@")[1]
-                        
+
                     # now the macro may only be part of a FQDN hostname
                     if "." in result:
                         dcs = result.split(".")
@@ -799,9 +801,9 @@ class Config(object, ConfigParser.RawConfigParser):
                             i = int(macro[1])
                             if len(dcs) < i:
                                 return ""
-                            
+
                             return dcs[-i]
-                    
+
                 return result
             else:
                 # we always must expand variables. Even if it is the empty
@@ -812,12 +814,12 @@ class Config(object, ConfigParser.RawConfigParser):
                         repl,
                         unicode(expression, "utf-8"),
                         re.UNICODE)
-     
+
         if self.debug:
             logging.debug("__expand_vars()->result=%s" % result)
-            
+
         return result
-        
+
     def __find_section(self, domain):
         l = self.sections()
         for section in iter(l):
@@ -825,7 +827,7 @@ class Config(object, ConfigParser.RawConfigParser):
                 return section
 
         raise NoSectionError(domain)
-        
+
     def get_provider(self):
         return self.__automx["provider"]
     provider = property(fget=get_provider)
@@ -841,25 +843,25 @@ class Config(object, ConfigParser.RawConfigParser):
     def get_password(self):
         return self.__password
     password = property(fget=get_password)
-    
+
     def get_emailaddress(self):
         return self.__emailaddress
     emailaddress = property(fget=get_emailaddress)
-    
-    
+
+
 class Memcache(object):
-    
+
     def __init__(self, config, environ):
         self.__config = config
         self.__environ = environ
-                
+
         # Memcache usage is optional
         self.__has_memcache = use_memcache
 
         self.__found = False
         self.__client = None
         self.__current = 0
-        
+
         try:
             if use_memcache:
                 self.__mc = memcache.Client([config.get("automx", "memcache")])
@@ -893,7 +895,7 @@ class Memcache(object):
             self.__current += 1
 
         self.__mc.set(self.__client, self.__current, time=ttl)
-                                                            
+
     def allow_client(self):
         if not self.__has_memcache:
             return True
@@ -907,7 +909,7 @@ class Memcache(object):
         else:
             if self.__config.debug:
                 logging.debug("NOT TRUSTED %s" % self.__client)
-        
+
         if self.__config.has_option("automx", "client_error_limit"):
             try:
                 limit = self.__config.getint("automx", "client_error_limit")
@@ -917,7 +919,7 @@ class Memcache(object):
                 limit = 20
         else:
             limit = 20
-        
+
         result = self.__mc.get(self.__client)
 
         if result is not None:
@@ -937,7 +939,7 @@ class Memcache(object):
             networks = self.__config.create_list(networks)
         else:
             networks = ("127.0.0.1", "::1/128")
-        
+
         for network in iter(networks):
             a = ipaddr.IPAddress(self.__client)
             n = ipaddr.IPNetwork(network)
