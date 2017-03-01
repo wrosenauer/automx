@@ -456,19 +456,19 @@ class View(object):
             if elem.has_key(service + "_server"):
                 if service in ("imap", "pop"):
                     proto["in_server"] = elem[service + "_server"]
-                else:
+                elif service == "smtp":
                     proto["out_server"] = elem[service + "_server"]
 
             if elem.has_key(service + "_port"):
                 if service in ("imap", "pop"):
                     proto["in_port"] = int(elem[service + "_port"])
-                else:
+                elif service == "smtp":
                     proto["out_port"] = int(elem[service + "_port"])
 
             if elem.has_key(service + "_auth_identity"):
                 if service in ("imap", "pop"):
                     proto["in_username"] = elem[service + "_auth_identity"]
-                else:
+                elif service == "smtp":
                     proto["out_username"] = elem[service + "_auth_identity"]
 
             if elem.has_key(service + "_auth"):
@@ -496,7 +496,7 @@ class View(object):
 
                 if service in ("imap", "pop"):
                     proto["in_auth"] = result
-                else:
+                elif service == "smtp":
                     proto["out_auth"] = result
 
             if elem.has_key(service + "_encryption"):
@@ -505,12 +505,12 @@ class View(object):
                 if value in ("ssl", "starttls"):
                     if service in ("imap", "pop"):
                         proto["in_encryption"] = True
-                    else:
+                    elif service == "smtp":
                         proto["out_encryption"] = True
                 else:
                     if service in ("imap", "pop"):
                         proto["in_encryption"] = False
-                    else:
+                    elif service == "smtp":
                         proto["out_encryption"] = False
 
     def render(self):
