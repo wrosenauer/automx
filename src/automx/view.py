@@ -123,7 +123,7 @@ class View(object):
                     raise Exception("Missing attribute <action>")
 
                 for key, value in self.__model.domain.iteritems():
-                    if key in ("smtp", "imap", "pop", "ox"):
+                    if key in ("smtp", "imap", "pop", "caldav", "carddav", "ox"):
                         if len(value) != 0:
                             protocol = etree.SubElement(account, "Protocol")
                             self.__service(key, protocol)
@@ -294,6 +294,10 @@ class View(object):
                 type = service.upper()
             elif service in "pop":
                 type = "POP3"
+            elif service in "caldav":
+                type = "CalDAV"
+            elif service in "carddav":
+                type = "CardDAV"
             elif service in "ox":
                 type ="X-OX-APPSUITE"
 

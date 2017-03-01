@@ -66,7 +66,7 @@ class Config(object, ConfigParser.RawConfigParser):
     like IMAP is configured before POP3 or upside down, because a MUA follows
     this order.
 
-    The class currently support smtp, pop, imap and ox services.
+    The class currently support smtp, pop, imap, carddav, caldav and ox services.
 
     The class currently supports the following backends:
 
@@ -234,6 +234,10 @@ class Config(object, ConfigParser.RawConfigParser):
                         service = self.__service(section, "imap")
                     elif opt == "pop":
                         service = self.__service(section, "pop")
+                    elif opt == "carddav":
+                        service = self.__service(section, "carddav")
+                    elif opt == "caldav":
+                        service = self.__service(section, "caldav")
                     elif opt == "ox":
                         service = self.__service(section, "ox")
                     elif opt == "sign_mobileconfig":
@@ -251,7 +255,7 @@ class Config(object, ConfigParser.RawConfigParser):
                     else:
                         pass
 
-                    if opt in ("smtp", "imap", "pop", "ox"):
+                    if opt in ("smtp", "imap", "pop", "caldav", "carddav", "ox"):
                         if backend == "static_append":
                             if settings.has_key(opt):
                                 if self.debug:
